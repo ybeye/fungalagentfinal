@@ -211,7 +211,55 @@ def run_evaluation(cases: list[EvaluationCase] | None = None) -> dict[str, objec
     write_json(settings.output_dir / "evaluation.json", report)
     return report
 
+def evaluate_single_answer(
+    query: str,
+    answer: str,
+    evidence_items: list[object],
+) -> dict[str, object]:
+    answer_text = answer or ""
+    query_text = query or ""
 
+    answer_lower = answer_text.lower()
+    query_terms = [
+        clean_term(term)
+        for term in query_text.lower().split()
+        if len(clean_term(term)) > 4
+    ]
+    query_terms = [term for term in query_terms if term]
+
+    evidence_text = " ".join(
+        f"{getattr(item, 'title', '')} {getattr(item, 'snippet', '')}"
+        for item in evidence_items
+    ).lower()
+
+    terms_in_answer = [
+        term for term in query_terms
+        if term in answer_lower
+    ]
+    safety = SafetyPolicy("strict")
+    safety_errors = safety.validate_response(answer_text)
+
+    answer_word_count = len(answer_text.split())
+    has_answer = answer_word_count > 0
+    has_evidence = len(evidence_items) > 0
+
+    return {
+        "query": query_text,
+        "answer_word_count": answer_word_count,
+        "evidence_items_used": len(evidence_items),
+        "query_terms_checked": query_terms,
+        "query_terms_found_in_answer": terms_in_answer,
+        "answer_query_term_coverage": len(terms_in_answer) / max(len(query_terms), 1),
+        "has_answer": has_answer,
+        "has_evidence": has_evidence,
+        "safety_errors": safety_errors,
+        "passed_safety_check": len(safety_errors) == 0,
+    }
+
+
+def clean_term(text: str) -> str:
+    return "".join(char for char in text.lower() if char.isalnum())
+    
 def first_rank_with_terms(ranked_text: list[str], terms: list[str]) -> int:
     lowered_terms = [term.lower() for term in terms]
     for rank, text in enumerate(ranked_text, start=1):

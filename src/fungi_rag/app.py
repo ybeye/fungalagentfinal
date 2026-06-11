@@ -29,6 +29,7 @@ def build_app():
 
     with gr.Blocks(title="Fungi RAG Learning System") as demo:
         gr.Markdown("# Fungi RAG Learning System")
+        last_ask_result = gr.State({})
         with gr.Tab("Brief"):
             brief_text = gr.Code(
                 label="YAML research brief",
@@ -87,13 +88,22 @@ def build_app():
 
         with gr.Tab("Ask"):
             question = gr.Textbox(label="Learner question")
-            ask_button = gr.Button("Retrieve Evidence and Create Codex Packet")
+            ask_button = gr.Button("Retrieve Evidence and Generate Answer")
             answer = gr.JSON(label="Result")
-            ask_button.click(ask_ui, inputs=question, outputs=answer)
+            ask_button.click(ask_ui, inputs=question, outputs=[answer, last_ask_result])
 
         with gr.Tab("Evaluation"):
-            evaluate_button = gr.Button("Run Evaluation")
-            eval_status = gr.JSON(label="Evaluation")
+            evaluate_current_button = gr.Button("Evaluate Last Answer")
+            current_eval_status = gr.JSON(label="Current Answer Evaluation")
+
+            evaluate_button = gr.Button("Run Benchmark Evaluation")
+            eval_status = gr.JSON(label="Benchmark Evaluation")
+
+            evaluate_current_button.click(
+                evaluate_current_answer_ui,
+                inputs=last_ask_result,
+                outputs=current_eval_status,
+            )
             evaluate_button.click(evaluate_ui, outputs=eval_status)
 
     return demo
@@ -149,8 +159,22 @@ def run_research_ui(text: str) -> dict[str, Any]:
         return {"error": str(exc)}
 
 
-def ask_ui(question: str) -> dict[str, Any]:
-    return FungiWorkflow().ask(question)
+def ask_ui(question: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    result = FungiWorkflow().ask(question)
+    return result, result
+    
+def evaluate_current_answer_ui(last_result: dict[str, Any]) -> dict[str, Any]:
+    from fungi_rag.evaluate import evaluate_single_answer
+
+    if not last_result:
+        return {"error": "No Ask result found yet. Ask a question first."}
+
+    query = last_result.get("evidence", {}).get("query", "")
+    answer = last_result.get("answer", "")
+    evidence_items = last_result.get("evidence", {}).get("items", [])
+
+    return evaluate_single_answer(query, answer, evidence_items)
+    
 
 
 def evaluate_ui() -> dict[str, Any]:

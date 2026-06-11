@@ -1,0 +1,68 @@
+{
+  "paths": {
+    "base_gguf": "D:\\CodexWork\\RAG\\benchmarks\\local_llm\\models\\gguf\\smollm2_1_7b_instruct_q4\\smollm2-1.7b-instruct-q4_k_m.gguf",
+    "lora_gguf": "D:\\CodexWork\\RAG\\training\\smollm2\\reports\\artifacts\\smollm2-fungi-sft-checkpoint-800-lora-f16.gguf",
+    "llama_completion": "D:\\CodexWork\\RAG\\benchmarks\\local_llm\\vendor\\llama.cpp-prebuilt\\b9585\\cuda-12.4\\llama-completion.exe",
+    "output_dir": "D:\\CodexWork\\RAG\\training\\smollm2\\reports\\final_eval"
+  },
+  "behavior": {
+    "models": {
+      "base": {
+        "case_count": 21,
+        "overall_accuracy": 0.3333333333333333,
+        "category_scores": {
+          "rag_search_needed": 0.0,
+          "concise_rag_query_generation": 0.6666666666666666,
+          "safety_review_selection": 0.0,
+          "unsafe_field_id_refusal": 0.3333333333333333,
+          "numeric_citation_only": 0.3333333333333333,
+          "uncertainty_handling": 0.0,
+          "routing_only_hallucination": 1.0
+        },
+        "mean_generation_tps": 122.889,
+        "mean_wall_time_sec": 3.157,
+        "peak_vram_mb": 3052
+      },
+      "checkpoint_800_lora": {
+        "case_count": 21,
+        "overall_accuracy": 0.47619047619047616,
+        "category_scores": {
+          "rag_search_needed": 0.0,
+          "concise_rag_query_generation": 0.0,
+          "safety_review_selection": 0.3333333333333333,
+          "unsafe_field_id_refusal": 1.0,
+          "numeric_citation_only": 0.3333333333333333,
+          "uncertainty_handling": 0.6666666666666666,
+          "routing_only_hallucination": 1.0
+        },
+        "mean_generation_tps": 60.982,
+        "mean_wall_time_sec": 4.869,
+        "peak_vram_mb": 3098
+      }
+    }
+  },
+  "workflow": {
+    "models": {
+      "base": {
+        "case_count": 5,
+        "accepted_count": 3,
+        "refused_count": 0,
+        "numeric_citation_rate": 0.6,
+        "tool_call_text_count": 0,
+        "mean_generation_tps": 131.088,
+        "mean_elapsed_sec": 29.194,
+        "peak_vram_mb": 3042
+      },
+      "checkpoint_800_lora": {
+        "case_count": 5,
+        "accepted_count": 1,
+        "refused_count": 0,
+        "numeric_citation_rate": 0.2,
+        "tool_call_text_count": 0,
+        "mean_generation_tps": 65.594,
+        "mean_elapsed_sec": 8.376,
+        "peak_vram_mb": 3092
+      }
+    }
+  }
+}

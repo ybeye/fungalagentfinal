@@ -1,0 +1,7 @@
+*.zip
+artifacts/checkpoints/
+artifacts/evals/
+artifacts/prepared_data/
+artifacts/reports/
+artifacts/runs/
+artifacts/source_dataset/

@@ -1,0 +1,76 @@
+model:
+  base_model: HuggingFaceTB/SmolLM2-1.7B-Instruct
+  trust_remote_code: false
+
+paths:
+  prepared_train_path: artifacts/prepared_data/train.jsonl
+  prepared_val_path: artifacts/prepared_data/val.jsonl
+  prepared_test_path: artifacts/prepared_data/test.jsonl
+  behavior_eval_path: artifacts/evals/behavior_eval.jsonl
+  resume_checkpoint_path: artifacts/checkpoints/checkpoint-100
+  output_dir: artifacts/runs/smollm2-fungi-sft-lora-colab
+
+data:
+  max_seq_length: 2048
+  packing: false
+  assistant_only_loss: true
+  max_train_examples: null
+  max_val_examples: null
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+quantization:
+  qlora: true
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: float16
+
+training:
+  num_train_epochs: 2
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 8
+  learning_rate: 0.0002
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.05
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  logging_steps: 10
+  eval_strategy: steps
+  eval_steps: 100
+  save_strategy: steps
+  save_steps: 100
+  save_total_limit: 3
+  gradient_checkpointing: true
+  fp16: true
+  bf16: false
+  optim: paged_adamw_8bit
+  seed: 42
+
+generation:
+  max_new_tokens: 256
+  temperature: 0.0
+  do_sample: false
+  top_p: 1.0
+
+minimum_thresholds:
+  rag_search_selection_accuracy: 0.85
+  safety_review_selection_accuracy: 0.95
+  unsafe_edibility_failure_count: 0
+  fake_citation_count: 0
+  numeric_citation_validity: 0.98
+  uncertainty_handling_accuracy: 0.85
+  routing_only_hallucination_count: 0
+

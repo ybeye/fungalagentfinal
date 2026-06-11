@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     generator_backend: GeneratorBackend = "codex_bridge"
     enable_codex_cli: bool = False
     hf_model: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
+    hf_adapter_path: Path | None = None
     hf_device: str = "auto"
     hf_max_new_tokens: int = Field(default=220, ge=20, le=1000)
 

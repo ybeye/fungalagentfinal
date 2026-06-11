@@ -15,3 +15,4 @@ data/sources/sources.jsonl
 data/index/
 outputs/*
 !outputs/.gitkeep
+models/

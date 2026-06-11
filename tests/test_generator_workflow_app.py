@@ -78,6 +78,23 @@ def test_codex_bridge_rejects_unknown_citation(tmp_path: Path) -> None:
     assert "Unknown citation ids" in " ".join(second.validation_errors)
 
 
+def test_codex_bridge_accepts_parenthetical_numeric_citation(tmp_path: Path) -> None:
+    request = GenerationRequest(
+        run_id="run",
+        step="ask",
+        task="Answer with evidence.",
+        evidence=evidence_packet(),
+        output_dir=tmp_path,
+    )
+    first = CodexBridgeGenerator().generate(request)
+    Path(first.response_path).write_text(
+        "Hyphae can increase absorptive surface area in fungi (1).",
+        encoding="utf-8",
+    )
+    second = CodexBridgeGenerator().generate(request)
+    assert second.status == "accepted"
+
+
 def test_transformers_generator_writes_cited_response(tmp_path: Path, monkeypatch) -> None:
     def fake_generate_text(self, prompt: str) -> str:  # noqa: ANN001
         assert "Evidence:" in prompt
@@ -138,11 +155,42 @@ def test_transformers_generator_strips_copied_evidence_labels(
     assert result.text == "Fungal traits affect decomposition by changing how fungi use nutrients."
 
 
+def test_transformers_generator_normalizes_parenthetical_citations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    def fake_generate_text(self, prompt: str) -> str:  # noqa: ANN001
+        return "Mycotoxins can be risky because fungal metabolites may harm animals (1)."
+
+    monkeypatch.setattr(TransformersGenerator, "_generate_text", fake_generate_text)
+    request = GenerationRequest(
+        run_id="run",
+        step="ask",
+        task="Answer with evidence.",
+        evidence=evidence_packet(),
+        output_dir=tmp_path,
+    )
+    result = TransformersGenerator().generate(request)
+    assert result.status == "accepted"
+    assert "(1)" not in result.text
+    assert "[1]" in result.text
+
+
 def test_build_generator_supports_transformers(monkeypatch) -> None:
     monkeypatch.setenv("FUNGI_HF_MODEL", "HuggingFaceTB/SmolLM2-1.7B-Instruct")
     generator = build_generator("transformers")
     assert isinstance(generator, TransformersGenerator)
     assert generator.model_name == "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+
+
+def test_build_generator_supports_lora_adapter_path(monkeypatch, tmp_path: Path) -> None:
+    adapter_path = tmp_path / "checkpoint-800"
+    adapter_path.mkdir()
+    monkeypatch.setenv("FUNGI_HF_MODEL", "HuggingFaceTB/SmolLM2-1.7B-Instruct")
+    monkeypatch.setenv("FUNGI_HF_ADAPTER_PATH", str(adapter_path))
+    generator = build_generator("transformers")
+    assert isinstance(generator, TransformersGenerator)
+    assert generator.adapter_path == adapter_path
 
 
 def test_workflow_declares_human_approval_stages() -> None:

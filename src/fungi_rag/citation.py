@@ -26,10 +26,12 @@ class CitationAuditResult:
 
 class CitationAuditor:
     citation_pattern = re.compile(r"\[(\d+)\]")
+    parenthetical_citation_pattern = re.compile(r"(?<!\w)\((\d{1,3})\)(?!\w)")
     sentence_pattern = re.compile(r"(?<=[.!?])\s+")
 
     def audit(self, text: str, evidence: EvidencePacket, require_all: bool = False) -> CitationAuditResult:
         available = {item.citation_id for item in evidence.items}
+        text = normalize_numeric_citations(text, available)
         cited = sorted({int(match.group(1)) for match in self.citation_pattern.finditer(text or "")})
         unknown = sorted(set(cited) - available)
         missing = sorted(available - set(cited)) if require_all else []
@@ -55,6 +57,19 @@ class CitationAuditor:
                 continue
             unsupported.append(clean[:220])
         return unsupported[:10]
+
+
+def normalize_numeric_citations(text: str, available_ids: set[int] | None = None) -> str:
+    """Convert obvious citation-only parentheticals like (5) to [5]."""
+    available = available_ids or set()
+
+    def replace(match: re.Match[str]) -> str:
+        citation_id = int(match.group(1))
+        if available and citation_id not in available:
+            return match.group(0)
+        return f"[{citation_id}]"
+
+    return CitationAuditor.parenthetical_citation_pattern.sub(replace, text or "")
 
 
 def format_references(evidence: EvidencePacket) -> str:

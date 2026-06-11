@@ -6,7 +6,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from fungi_rag.citation import CitationAuditor
+from fungi_rag.citation import CitationAuditor, normalize_numeric_citations
 from fungi_rag.models import GenerationRequest, GenerationResult
 from fungi_rag.safety import SafetyPolicy
 from fungi_rag.utils import atomic_write_text, write_json
@@ -62,6 +62,8 @@ class CodexBridgeGenerator(Generator):
         )
 
     def validate_text(self, text: str, request: GenerationRequest) -> list[str]:
+        available = {item.citation_id for item in request.evidence.items}
+        text = normalize_numeric_citations(text, available)
         errors = SafetyPolicy(request.safety_mode).validate_response(text)
         audit = self.auditor.audit(text, request.evidence, require_all=False)
         if audit.unknown_ids:
@@ -218,11 +220,13 @@ class TransformersGenerator(CodexBridgeGenerator):
     def __init__(
         self,
         model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct",
+        adapter_path: str | Path | None = None,
         device: str = "auto",
         max_new_tokens: int = 220,
     ) -> None:
         super().__init__()
         self.model_name = model_name
+        self.adapter_path = Path(adapter_path) if adapter_path else None
         self.device = device
         self.max_new_tokens = max_new_tokens
         self._tokenizer = None
@@ -257,6 +261,8 @@ class TransformersGenerator(CodexBridgeGenerator):
             )
 
         text = self._clean_answer(text)
+        available = {item.citation_id for item in request.evidence.items}
+        text = normalize_numeric_citations(text, available)
         atomic_write_text(response_path, text)
         errors = SafetyPolicy(request.safety_mode).validate_response(text)
         return GenerationResult(
@@ -338,6 +344,16 @@ Answer:
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        if self.adapter_path is not None:
+            if not self.adapter_path.exists():
+                raise RuntimeError(f"LoRA adapter path does not exist: {self.adapter_path}")
+            try:
+                from peft import PeftModel
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Install PEFT to load the fine-tuned LoRA adapter: `python -m pip install peft`."
+                ) from exc
+            model = PeftModel.from_pretrained(model, str(self.adapter_path))
         target_device = self._pick_device(torch)
         model = model.to(target_device)
         model.eval()
@@ -398,6 +414,7 @@ def build_generator(backend: str = "codex_bridge", enable_codex_cli: bool = Fals
         settings = get_settings()
         return TransformersGenerator(
             model_name=settings.hf_model,
+            adapter_path=settings.hf_adapter_path,
             device=settings.hf_device,
             max_new_tokens=settings.hf_max_new_tokens,
         )

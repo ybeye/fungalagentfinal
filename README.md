@@ -25,6 +25,7 @@ cd FunghiResearchAgent
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev,eval]"
+python -m pip install peft
 ```
 
 On Windows PowerShell, activate the environment with:
@@ -37,7 +38,31 @@ The app stores runtime data under relative project paths by default:
 `data/`, `outputs/`, and `data/chroma/`. Override these with `.env` settings
 when needed.
 
-## Commands
+
+## Commands and Local LLM Setup
+
+Create a local .env file from the example configuration:
+
+```bash
+cp .env.example .env
+```
+
+The `.env` file should contain:
+```text
+FUNGI_GENERATOR_BACKEND=transformers
+FUNGI_HF_MODEL=HuggingFaceTB/SmolLM2-1.7B-Instruct
+FUNGI_HF_ADAPTER_PATH=models/smollm2-fungi-checkpoint-800
+```
+
+Add the Fine-Tuned Adapter
+The fine-tuned LoRA adapter is not included in the GitHub repository, but will be included in the final submission. 
+Create a folder with the name models in the main directory, and place smollm2-fungi-checkpoint-800 within it. 
+Place the adapter folder at:
+```text
+models/
+└── smollm2-fungi-checkpoint-800/
+```
+If the adapter folder is missing, the application will most likely fail.
 
 ```bash
 python -m fungi_rag.sources download
@@ -51,6 +76,8 @@ Then open `http://127.0.0.1:7860`.
 
 The first run may download the configured local embedding model. No API key is
 required for the default Codex-bridge and local embedding path.
+Open the Gradio interface in your browser and test the system using questions like: What role do fungi play in decomposition?
+    What are mycorrhizal fungi?
 
 ## Codex Bridge
 

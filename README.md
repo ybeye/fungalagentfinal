@@ -67,9 +67,7 @@ If the adapter folder is missing, the application will most likely fail.
 ```bash
 python -m fungi_rag.sources download
 python -m fungi_rag.ingest data/sources/raw
-python -m fungi_rag.app
-python -m fungi_rag.run examples/fungi_research_brief.yaml
-python -m fungi_rag.evaluate
+python -m fungi_rag.app --host 127.0.0.1 --port 7860
 ```
 
 Then open `http://127.0.0.1:7860`.

@@ -60,8 +60,9 @@ class DocumentIngestor:
             chunk_size=self.settings.chunk_size,
             chunk_overlap=self.settings.chunk_overlap,
         )
-        return [
-            SourceChunk.from_text(
+        chunks = []
+        for index, piece in enumerate(pieces):
+            chunk = SourceChunk.from_text(
                 source=source,
                 text=piece.text,
                 chunk_index=index,
@@ -71,17 +72,19 @@ class DocumentIngestor:
                     "corpus_role": source.metadata.get("corpus_role", "background"),
                 },
             )
-            for index, piece in enumerate(pieces)
-        ]
+            chunks.append(chunk)
+        return chunks
 
     def _iter_files(self, path: Path) -> list[Path]:
         if path.is_file():
             return [path] if path.suffix.lower() in SUPPORTED_EXTENSIONS else []
-        return [
-            file_path
-            for file_path in sorted(path.rglob("*"))
-            if file_path.is_file() and file_path.suffix.lower() in SUPPORTED_EXTENSIONS
-        ]
+        files = []
+        for file_path in sorted(path.rglob("*")):
+            if not file_path.is_file():
+                continue
+            if file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
+                files.append(file_path)
+        return files
 
 
 class TextPiece:
@@ -135,7 +138,10 @@ def chunk_text(text: str, *, chunk_size: int, chunk_overlap: int) -> list[TextPi
     sections = split_sections(text)
     pieces: list[TextPiece] = []
     for section, body in sections:
-        paragraphs = [normalize_whitespace(item) for item in re.split(r"\n\s*\n", body) if item.strip()]
+        paragraphs = []
+        for item in re.split(r"\n\s*\n", body):
+            if item.strip():
+                paragraphs.append(normalize_whitespace(item))
         buffer = ""
         for paragraph in paragraphs:
             next_buffer = f"{buffer}\n\n{paragraph}".strip() if buffer else paragraph
@@ -152,7 +158,13 @@ def chunk_text(text: str, *, chunk_size: int, chunk_overlap: int) -> list[TextPi
                 buffer = f"{overlap} {buffer[len(piece):]}".strip()
         if buffer:
             pieces.append(TextPiece(buffer, section))
-    return [piece for piece in pieces if len(piece.text) >= 80] or [TextPiece(normalize_whitespace(text))]
+    long_pieces = []
+    for piece in pieces:
+        if len(piece.text) >= 80:
+            long_pieces.append(piece)
+    if long_pieces:
+        return long_pieces
+    return [TextPiece(normalize_whitespace(text))]
 
 
 def split_sections(text: str) -> list[tuple[str | None, str]]:
@@ -196,7 +208,9 @@ def infer_corpus_role(
     explicit_role = str(metadata.get("corpus_role") or "").lower()
     if explicit_role in {"background", "reference"}:
         return explicit_role
-    path_parts = {part.lower() for part in path.parts}
+    path_parts = set()
+    for part in path.parts:
+        path_parts.add(part.lower())
     if "background" in path_parts:
         return "background"
     if "references" in path_parts or "reference" in path_parts:

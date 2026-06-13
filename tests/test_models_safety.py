@@ -62,6 +62,7 @@ def test_safety_refuses_natural_foraging_questions(question: str) -> None:
     decision = SafetyPolicy().check(question)
     assert not decision.allowed
 
+
 def test_safety_allows_academic_toxicology() -> None:
     decision = SafetyPolicy().check("Explain amatoxin toxicology in academic terms.")
     assert decision.allowed

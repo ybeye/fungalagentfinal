@@ -19,7 +19,9 @@ DEFAULT_MANIFEST = Path("examples/source_manifest.yaml")
 
 
 def load_manifest(path: Path | str = DEFAULT_MANIFEST) -> SourceManifest:
-    return SourceManifest.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+    manifest_path = Path(path)
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    return SourceManifest.model_validate(data)
 
 
 class SourceDownloader:
@@ -87,7 +89,7 @@ class SourceDownloader:
                 "project_path": str(project_path),
                 "status": "downloaded",
             }
-        except Exception as exc:  # noqa: BLE001 - preserve downloader progress across source failures.
+        except Exception as exc:
             return {
                 "id": entry.id,
                 "title": entry.title,
@@ -144,9 +146,17 @@ def main(argv: Iterable[str] | None = None) -> None:
     if args.command == "download":
         manifest = load_manifest(Path(args.manifest))
         rows = SourceDownloader().download_manifest(manifest, refresh=args.refresh)
-        downloaded = sum(1 for row in rows if row.get("status") == "downloaded")
-        failed = sum(1 for row in rows if row.get("status") == "failed")
-        skipped = sum(1 for row in rows if row.get("status") == "skipped_existing")
+        downloaded = 0
+        failed = 0
+        skipped = 0
+        for row in rows:
+            status = row.get("status")
+            if status == "downloaded":
+                downloaded += 1
+            elif status == "failed":
+                failed += 1
+            elif status == "skipped_existing":
+                skipped += 1
         print(f"Downloaded {downloaded}, skipped {skipped}, failed {failed}")
 
 

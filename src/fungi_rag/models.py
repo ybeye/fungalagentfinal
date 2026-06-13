@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -38,7 +37,13 @@ class ResearchBrief(BaseModel):
     @field_validator("learning_objectives", "section_names")
     @classmethod
     def strip_list_values(cls, values: list[str]) -> list[str]:
-        cleaned = [value.strip() for value in values if value and value.strip()]
+        cleaned = []
+        for value in values:
+            if not value:
+                continue
+            value = value.strip()
+            if value:
+                cleaned.append(value)
         if not cleaned:
             raise ValueError("at least one non-empty value is required")
         return cleaned
@@ -49,9 +54,12 @@ class ResearchBrief(BaseModel):
             if self.number_of_paragraphs < 1:
                 raise ValueError("number_of_paragraphs must be positive")
             return self
-        missing = set(self.section_names) - set(self.number_of_paragraphs)
+        missing = []
+        for section in self.section_names:
+            if section not in self.number_of_paragraphs:
+                missing.append(section)
         if missing:
-            raise ValueError(f"paragraph counts missing for sections: {sorted(missing)}")
+            raise ValueError(f"paragraph counts missing for sections: {missing}")
         for section, count in self.number_of_paragraphs.items():
             if count < 1:
                 raise ValueError(f"paragraph count for {section!r} must be positive")
@@ -79,9 +87,11 @@ class SourceManifest(BaseModel):
     @field_validator("sources")
     @classmethod
     def source_ids_unique(cls, values: list[SourceManifestEntry]) -> list[SourceManifestEntry]:
-        ids = [value.id for value in values]
-        if len(ids) != len(set(ids)):
-            raise ValueError("source ids must be unique")
+        seen = set()
+        for value in values:
+            if value.id in seen:
+                raise ValueError("source ids must be unique")
+            seen.add(value.id)
         return values
 
 

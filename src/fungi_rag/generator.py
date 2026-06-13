@@ -3,17 +3,15 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from abc import ABC, abstractmethod
 from pathlib import Path
 
 from fungi_rag.citation import CitationAuditor, normalize_numeric_citations
 from fungi_rag.models import GenerationRequest, GenerationResult
 from fungi_rag.safety import SafetyPolicy
-from fungi_rag.utils import atomic_write_text, write_json
+from fungi_rag.utils import atomic_write_text, normalize_whitespace, write_json
 
 
-class Generator(ABC):
-    @abstractmethod
+class Generator:
     def generate(self, request: GenerationRequest) -> GenerationResult:
         raise NotImplementedError
 
@@ -210,7 +208,7 @@ class CodexCliGenerator(CodexBridgeGenerator):
                 return result
             Path(result.response_path).write_text(completed.stdout, encoding="utf-8")
             return super().generate(request)
-        except Exception as exc:  # noqa: BLE001 - CLI adapter must fail closed.
+        except Exception as exc:
             result.status = "failed"
             result.validation_errors.append(str(exc))
             return result
@@ -249,7 +247,7 @@ class TransformersGenerator(CodexBridgeGenerator):
 
         try:
             text = self._generate_text(prompt)
-        except Exception as exc:  # noqa: BLE001 - local model adapter should fail closed.
+        except Exception as exc:
             return GenerationResult(
                 status="failed",
                 step=request.step,
@@ -263,6 +261,7 @@ class TransformersGenerator(CodexBridgeGenerator):
         text = self._clean_answer(text)
         available = {item.citation_id for item in request.evidence.items}
         text = normalize_numeric_citations(text, available)
+        text = self._remove_answer_citations(text)
         atomic_write_text(response_path, text)
         errors = SafetyPolicy(request.safety_mode).validate_response(text)
         return GenerationResult(
@@ -361,7 +360,7 @@ Answer:
         self._tokenizer = tokenizer
         self._model = model
 
-    def _pick_device(self, torch) -> str:  # noqa: ANN001
+    def _pick_device(self, torch) -> str:
         if self.device != "auto":
             return self.device
         if torch.cuda.is_available():
@@ -392,6 +391,12 @@ Answer:
         if sentence_parts:
             return " ".join(sentence.strip() for sentence in sentence_parts[:3])
         return cleaned
+
+    @staticmethod
+    def _remove_answer_citations(text: str) -> str:
+        cleaned = re.sub(r"\[\d+(?:\s*,\s*\d+)*\]", "", text)
+        cleaned = normalize_whitespace(cleaned)
+        return re.sub(r"\s+([,.!?])", r"\1", cleaned)
 
 def default_response_schema(step: str) -> dict[str, object]:
     return {

@@ -103,7 +103,8 @@ def test_source_downloader_copies_seed_files_to_project_corpus_folders(tmp_path:
     source_path.write_text("<h1>Reference Paper</h1>", encoding="utf-8")
     sidecar_path.write_text('{"id": "pmc_test", "title": "Reference Paper"}', encoding="utf-8")
 
-    copied_path = SourceDownloader(settings, rate_limit_seconds=0).copy_entry_to_project_folder(
+    downloader = SourceDownloader(settings, rate_limit_seconds=0)
+    copied_path = downloader.copy_entry_to_project_folder(
         source_path,
         sidecar_path,
         entry,
@@ -114,9 +115,8 @@ def test_source_downloader_copies_seed_files_to_project_corpus_folders(tmp_path:
     assert '"corpus_role": "reference"' in copied_path.with_suffix(".html.metadata.json").read_text(
         encoding="utf-8"
     )
-    assert corpus_role_for(SourceManifestEntry(id="openstax", title="Book", url="https://x.test")) == (
-        "background"
-    )
+    background_entry = SourceManifestEntry(id="openstax", title="Book", url="https://x.test")
+    assert corpus_role_for(background_entry) == "background"
 
 
 def test_filter_chunks_by_corpus_role() -> None:
@@ -140,7 +140,8 @@ def test_filter_chunks_by_corpus_role() -> None:
             metadata={"corpus_role": "reference"},
         ),
     ]
-    assert [chunk.source_id for chunk in filter_chunks_by_role(chunks, "background")] == [
-        "background"
-    ]
-    assert [chunk.source_id for chunk in filter_chunks_by_role(chunks, "reference")] == ["reference"]
+    background_chunks = filter_chunks_by_role(chunks, "background")
+    reference_chunks = filter_chunks_by_role(chunks, "reference")
+
+    assert [chunk.source_id for chunk in background_chunks] == ["background"]
+    assert [chunk.source_id for chunk in reference_chunks] == ["reference"]

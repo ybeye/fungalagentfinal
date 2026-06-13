@@ -8,6 +8,7 @@ from typing import Any, Iterable
 import yaml
 
 from fungi_rag.config import get_settings
+from fungi_rag.evaluate import evaluate_single_answer, run_evaluation
 from fungi_rag.ingest import DocumentIngestor
 from fungi_rag.models import ResearchBrief
 from fungi_rag.sources import SourceDownloader, load_manifest
@@ -26,6 +27,10 @@ def build_app():
         return MissingGradioApp()
 
     settings = get_settings()
+    brief_path = Path("examples/fungi_research_brief.yaml")
+    brief_value = ""
+    if brief_path.exists():
+        brief_value = brief_path.read_text(encoding="utf-8")
 
     with gr.Blocks(title="Fungi RAG Learning System") as demo:
         gr.Markdown("# Fungi RAG Learning System")
@@ -34,9 +39,7 @@ def build_app():
             brief_text = gr.Code(
                 label="YAML research brief",
                 language="yaml",
-                value=Path("examples/fungi_research_brief.yaml").read_text(encoding="utf-8")
-                if Path("examples/fungi_research_brief.yaml").exists()
-                else "",
+                value=brief_value,
             )
             validate_button = gr.Button("Validate Brief")
             brief_status = gr.JSON(label="Validation")
@@ -113,7 +116,7 @@ def validate_brief_ui(text: str) -> dict[str, Any]:
     try:
         brief = ResearchBrief.model_validate(yaml.safe_load(text))
         return {"ok": True, "brief": brief.model_dump(mode="json")}
-    except Exception as exc:  # noqa: BLE001 - UI should return validation detail.
+    except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
 
@@ -155,17 +158,16 @@ def run_research_ui(text: str) -> dict[str, Any]:
         brief = ResearchBrief.model_validate(yaml.safe_load(text))
         state, paths = FungiWorkflow().run_research(brief)
         return {"state": state.model_dump(mode="json"), "paths": paths}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return {"error": str(exc)}
 
 
 def ask_ui(question: str) -> tuple[dict[str, Any], dict[str, Any]]:
     result = FungiWorkflow().ask(question)
     return result, result
-    
-def evaluate_current_answer_ui(last_result: dict[str, Any]) -> dict[str, Any]:
-    from fungi_rag.evaluate import evaluate_single_answer
 
+
+def evaluate_current_answer_ui(last_result: dict[str, Any]) -> dict[str, Any]:
     if not last_result:
         return {"error": "No Ask result found yet. Ask a question first."}
 
@@ -174,12 +176,9 @@ def evaluate_current_answer_ui(last_result: dict[str, Any]) -> dict[str, Any]:
     evidence_items = last_result.get("evidence", {}).get("items", [])
 
     return evaluate_single_answer(query, answer, evidence_items)
-    
 
 
 def evaluate_ui() -> dict[str, Any]:
-    from fungi_rag.evaluate import run_evaluation
-
     return run_evaluation()
 
 

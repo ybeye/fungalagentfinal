@@ -12,7 +12,14 @@ import numpy as np
 from fungi_rag.config import Settings, get_settings
 from fungi_rag.embeddings import EmbeddingBackend, build_embedding_backend
 from fungi_rag.models import EvidenceItem, EvidencePacket, RagTrace, SourceChunk
-from fungi_rag.utils import ensure_dir, normalize_whitespace, read_jsonl, stable_id, write_json
+from fungi_rag.utils import (
+    append_jsonl,
+    ensure_dir,
+    normalize_whitespace,
+    read_jsonl,
+    stable_id,
+    write_json,
+)
 
 
 TOKEN_PATTERN = re.compile(r"[a-zA-Z][a-zA-Z0-9_-]+")
@@ -48,8 +55,6 @@ class ChunkRepository:
             existing[chunk.chunk_id] = chunk
         rows = [chunk.model_dump(mode="json") for chunk in existing.values()]
         self.chunks_path.write_text("", encoding="utf-8")
-        from fungi_rag.utils import append_jsonl
-
         append_jsonl(self.chunks_path, rows)
         return len(rows)
 
@@ -86,7 +91,10 @@ class BM25Retriever:
             if score > 0:
                 results.append(SearchResult(self.chunks[idx], score, 0))
         results.sort(key=lambda item: item.score, reverse=True)
-        return [SearchResult(result.chunk, result.score, rank + 1) for rank, result in enumerate(results[:top_k])]
+        ranked_results = []
+        for rank, result in enumerate(results[:top_k], start=1):
+            ranked_results.append(SearchResult(result.chunk, result.score, rank))
+        return ranked_results
 
 
 class LocalVectorIndex:
@@ -121,8 +129,6 @@ class LocalVectorIndex:
 
 
 class ChromaVectorIndex:
-    """Optional Chroma-backed dense index. Falls back to LocalVectorIndex when unavailable."""
-
     def __init__(
         self,
         chunks: list[SourceChunk],
@@ -215,7 +221,12 @@ class HybridRetriever:
             corpus_role=corpus_role,
         )
 
-    def retrieve(self, query: str, top_k: int | None = None, run_id: str | None = None) -> tuple[EvidencePacket, RagTrace]:
+    def retrieve(
+        self,
+        query: str,
+        top_k: int | None = None,
+        run_id: str | None = None,
+    ) -> tuple[EvidencePacket, RagTrace]:
         top_k = top_k or self.settings.retrieval_top_k
         normalized = normalize_query(query)
         candidate_count = max(top_k * 4, 12)
@@ -223,8 +234,9 @@ class HybridRetriever:
         keyword_results = self.keyword.search(normalized, candidate_count)
         fused = self._reciprocal_rank_fusion(vector_results, keyword_results)
         selected, rejected = self._select_diverse(fused, top_k)
-        items = [
-            EvidenceItem(
+        items: list[EvidenceItem] = []
+        for index, result in enumerate(selected):
+            item = EvidenceItem(
                 citation_id=index + 1,
                 chunk_id=result.chunk.chunk_id,
                 source_id=result.chunk.source_id,
@@ -242,8 +254,7 @@ class HybridRetriever:
                     **result.chunk.metadata,
                 },
             )
-            for index, result in enumerate(selected)
-        ]
+            items.append(item)
         packet = EvidencePacket(query=query, normalized_query=normalized, items=items)
         trace = RagTrace(
             run_id=run_id or stable_id(query),
@@ -279,16 +290,18 @@ class HybridRetriever:
         return LocalVectorIndex(self.chunks, self.embeddings)
 
     def _result_rows(self, results: list[SearchResult]) -> list[dict[str, object]]:
-        return [
-            {
+        rows = []
+        for result in results:
+            rows.append(
+                {
                 "chunk_id": result.chunk.chunk_id,
                 "source_id": result.chunk.source_id,
                 "title": result.chunk.title,
                 "score": result.score,
                 "rank": result.rank,
-            }
-            for result in results
-        ]
+                }
+            )
+        return rows
 
     def _reciprocal_rank_fusion(
         self,
@@ -299,25 +312,40 @@ class HybridRetriever:
         fused: dict[str, FusedResult] = {}
         for channel, results in [("vector", vector_results), ("keyword", keyword_results)]:
             for result in results:
-                current = fused.setdefault(result.chunk.chunk_id, FusedResult(result.chunk))
+                chunk_id = result.chunk.chunk_id
+                if chunk_id not in fused:
+                    fused[chunk_id] = FusedResult(result.chunk)
+                current = fused[chunk_id]
                 current.score_components[channel] = result.score
                 current.fused_score += 1.0 / (rrf_k + result.rank)
-        ranked = sorted(fused.values(), key=lambda item: item.fused_score, reverse=True)
-        for rank, result in enumerate(ranked, start=1):
+        ranked_results = sorted(fused.values(), key=lambda item: item.fused_score, reverse=True)
+        for rank, result in enumerate(ranked_results, start=1):
             result.rank = rank
-        return ranked
+        return ranked_results
 
-    def _select_diverse(self, results: list["FusedResult"], top_k: int) -> tuple[list["FusedResult"], list["FusedResult"]]:
+    def _select_diverse(
+        self,
+        results: list["FusedResult"],
+        top_k: int,
+    ) -> tuple[list["FusedResult"], list["FusedResult"]]:
         selected: list[FusedResult] = []
         rejected: list[FusedResult] = []
         source_counts: defaultdict[str, int] = defaultdict(int)
         for result in results:
             if len(selected) >= top_k:
                 break
-            too_many_from_source = source_counts[result.chunk.source_id] >= 2 and len(selected) < top_k - 1
-            too_similar = any(self._jaccard(result.chunk.text, prior.chunk.text) > 0.82 for prior in selected)
-            if too_many_from_source or too_similar:
-                result.rejection_reason = "source diversity" if too_many_from_source else "near duplicate"
+            source_already_used = (
+                source_counts[result.chunk.source_id] >= 2
+                and len(selected) < top_k - 1
+            )
+            duplicate_text = any(
+                self._jaccard(result.chunk.text, prior.chunk.text) > 0.82
+                for prior in selected
+            )
+            if source_already_used or duplicate_text:
+                result.rejection_reason = (
+                    "source diversity" if source_already_used else "near duplicate"
+                )
                 rejected.append(result)
                 continue
             selected.append(result)

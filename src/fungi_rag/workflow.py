@@ -23,44 +23,17 @@ class FungiWorkflow:
         generator: Generator | None = None,
     ) -> None:
         self.settings = settings or get_settings()
-        self._retriever = retriever
-        self._background_retriever: HybridRetriever | None = None
-        self._reference_retriever: HybridRetriever | None = None
-        self._generator = generator
+        self.retriever = retriever
+        self.generator = generator
         self.safety = SafetyPolicy("strict")
 
-    @property
-    def retriever(self) -> HybridRetriever:
-        if self._retriever is None:
-            self._retriever = HybridRetriever.from_settings(self.settings)
-        return self._retriever
-
-    @property
-    def background_retriever(self) -> HybridRetriever:
-        if self._background_retriever is None:
-            self._background_retriever = HybridRetriever.from_settings(
-                self.settings,
-                corpus_role="background",
-            )
-        return self._background_retriever
-
-    @property
-    def reference_retriever(self) -> HybridRetriever:
-        if self._reference_retriever is None:
-            self._reference_retriever = HybridRetriever.from_settings(
-                self.settings,
-                corpus_role="reference",
-            )
-        return self._reference_retriever
-
-    @property
-    def generator(self) -> Generator:
-        if self._generator is None:
-            self._generator = build_generator(
+    def get_generator(self) -> Generator:
+        if self.generator is None:
+            self.generator = build_generator(
                 self.settings.generator_backend,
                 self.settings.enable_codex_cli,
             )
-        return self._generator
+        return self.generator
 
     def ask(self, question: str, run_id: str | None = None) -> dict[str, object]:
         decision = self.safety.check(question)
@@ -74,12 +47,20 @@ class FungiWorkflow:
                 "reason": decision.reason,
                 "output_dir": str(output_dir),
             }
-        background_packet, background_trace = self.background_retriever.retrieve(
+        background_retriever = HybridRetriever.from_settings(
+            self.settings,
+            corpus_role="background",
+        )
+        reference_retriever = HybridRetriever.from_settings(
+            self.settings,
+            corpus_role="reference",
+        )
+        background_packet, background_trace = background_retriever.retrieve(
             question,
             top_k=3,
             run_id=f"{run_id}-background",
         )
-        reference_packet, reference_trace = self.reference_retriever.retrieve(
+        reference_packet, reference_trace = reference_retriever.retrieve(
             question,
             top_k=3,
             run_id=f"{run_id}-reference",
@@ -92,7 +73,7 @@ class FungiWorkflow:
             evidence=packet,
             output_dir=output_dir,
         )
-        result = self.generator.generate(request)
+        result = self.get_generator().generate(request)
         background_trace.generator_packet_path = result.prompt_path
         reference_trace.generator_packet_path = result.prompt_path
         return {
@@ -114,51 +95,54 @@ class FungiWorkflow:
         run_id = make_run_id(brief.title)
         output_dir = ensure_dir(self.settings.output_dir / run_id)
         queries = plan_queries(brief)
-        packets: list[EvidencePacket] = []
+        evidence_packets: list[EvidencePacket] = []
         traces = []
+        retriever = self.retriever or HybridRetriever.from_settings(self.settings)
         for query in queries:
-            packet, trace = self.retriever.retrieve(query, run_id=run_id)
-            packets.append(packet)
+            packet, trace = retriever.retrieve(query, run_id=run_id)
+            evidence_packets.append(packet)
             traces.append(trace)
-        merged = merge_packets(brief.topic, packets)
-        outline_result = self.generator.generate(
+        combined_evidence = merge_packets(brief.topic, evidence_packets)
+        generator = self.get_generator()
+        outline_result = generator.generate(
             GenerationRequest(
                 run_id=run_id,
                 step="outline",
                 task=outline_task(brief),
-                evidence=merged,
+                evidence=combined_evidence,
                 output_dir=output_dir,
                 safety_mode=brief.safety_mode,
             )
         )
-        draft_result = self.generator.generate(
+        draft_result = generator.generate(
             GenerationRequest(
                 run_id=run_id,
                 step="draft",
                 task=draft_task(brief, outline_result.text),
-                evidence=merged,
+                evidence=combined_evidence,
                 output_dir=output_dir,
                 safety_mode=brief.safety_mode,
             )
         )
         for trace in traces:
             trace.generator_packet_path = outline_result.prompt_path
+        status = "complete"
+        if outline_result.status == "pending" or draft_result.status == "pending":
+            status = "pending_codex"
         state = AgentState(
             run_id=run_id,
             brief=brief,
             queries=queries,
-            evidence_packets=packets,
+            evidence_packets=evidence_packets,
             outline=outline_result.text,
             draft=draft_result.text,
-            citations=[item.citation() for item in merged.items],
+            citations=[item.citation() for item in combined_evidence.items],
             output_dir=str(output_dir),
-            status="pending_codex"
-            if any(result.status == "pending" for result in [outline_result, draft_result])
-            else "complete",
+            status=status,
         )
         paths = Exporter(output_dir).export_run(
             state=state,
-            evidence=merged,
+            evidence=combined_evidence,
             generation_results=[outline_result, draft_result],
             traces=traces,
         )

@@ -5,11 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "fungi-rag"
 version = "0.1.0"
-description = "Codex-generated fungi RAG learning system with a project-owned retriever."
+description = "Fungi RAG learning system with local retrieval and evaluation."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
-authors = [{ name = "Codex" }]
+authors = [{ name = "Yoel Beyene, Jack Landers" }]
 dependencies = [
   "beautifulsoup4>=4.12",
   "chromadb>=0.5",

@@ -1,14 +1,14 @@
 # Fungi RAG Learning System
 
-This project is a local, academic RAG system for learning about fungi. It is designed
-to demonstrate retrieval engineering rather than simple API wrapping:
+This project is a local RAG system for learning about fungi. It focuses on the
+retrieval steps we covered in class:
 
 - source download and provenance tracking
 - extraction, normalization, chunking, and deduplication
 - local dense retrieval plus BM25 keyword retrieval
 - reciprocal-rank fusion and diversity filtering
 - evidence packets with source IDs and snippets
-- Codex prompt/response bridge for generation
+- file based prompt/response packets for generation
 - citation auditing, safety checks, exports, and evaluation
 
 The default path does not require `OPENAI_API_KEY`. Generation writes file-based
@@ -75,11 +75,11 @@ python -m fungi_rag.evaluate
 Then open `http://127.0.0.1:7860`.
 
 The first run may download the configured local embedding model. No API key is
-required for the default Codex-bridge and local embedding path.
+required for the default file based generation path and local embedding path.
 Open the Gradio interface in your browser and test the system using questions like: What role do fungi play in decomposition?
     What are mycorrhizal fungi?
 
-## Codex Bridge
+## File Based Generation
 
 Each generation step writes:
 
@@ -87,7 +87,7 @@ Each generation step writes:
 - `outputs/<run_id>/codex_tasks/<step>.evidence.json`
 - `outputs/<run_id>/codex_tasks/<step>.schema.json`
 
-Codex or a human reviewer writes:
+The response step writes:
 
 - `outputs/<run_id>/codex_tasks/<step>.response.md`
 - optional `outputs/<run_id>/codex_tasks/<step>.response.json`

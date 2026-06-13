@@ -14,15 +14,6 @@ class CitationAuditResult:
     unknown_ids: list[int] = field(default_factory=list)
     unsupported_sentences: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> dict[str, object]:
-        return {
-            "ok": self.ok,
-            "cited_ids": self.cited_ids,
-            "missing_ids": self.missing_ids,
-            "unknown_ids": self.unknown_ids,
-            "unsupported_sentences": self.unsupported_sentences,
-        }
-
 
 class CitationAuditor:
     citation_pattern = re.compile(r"\[(\d+)\]")
@@ -30,11 +21,30 @@ class CitationAuditor:
     sentence_pattern = re.compile(r"(?<=[.!?])\s+")
 
     def audit(self, text: str, evidence: EvidencePacket, require_all: bool = False) -> CitationAuditResult:
-        available = {item.citation_id for item in evidence.items}
+        available = set()
+        for item in evidence.items:
+            available.add(item.citation_id)
+
         text = normalize_numeric_citations(text, available)
-        cited = sorted({int(match.group(1)) for match in self.citation_pattern.finditer(text or "")})
-        unknown = sorted(set(cited) - available)
-        missing = sorted(available - set(cited)) if require_all else []
+
+        cited_ids = set()
+        for match in self.citation_pattern.finditer(text or ""):
+            cited_ids.add(int(match.group(1)))
+        cited = sorted(cited_ids)
+
+        unknown_ids = set()
+        for citation_id in cited:
+            if citation_id not in available:
+                unknown_ids.add(citation_id)
+        unknown = sorted(unknown_ids)
+
+        missing = []
+        if require_all:
+            for citation_id in available:
+                if citation_id not in cited_ids:
+                    missing.append(citation_id)
+            missing = sorted(missing)
+
         unsupported = self._unsupported_sentences(text)
         ok = not unknown and not missing and not unsupported
         return CitationAuditResult(
@@ -60,7 +70,6 @@ class CitationAuditor:
 
 
 def normalize_numeric_citations(text: str, available_ids: set[int] | None = None) -> str:
-    """Convert obvious citation-only parentheticals like (5) to [5]."""
     available = available_ids or set()
 
     def replace(match: re.Match[str]) -> str:

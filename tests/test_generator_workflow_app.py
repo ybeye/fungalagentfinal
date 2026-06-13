@@ -155,11 +155,11 @@ def test_transformers_generator_strips_copied_evidence_labels(
     assert result.text == "Fungal traits affect decomposition by changing how fungi use nutrients."
 
 
-def test_transformers_generator_normalizes_parenthetical_citations(
+def test_transformers_generator_removes_citations_from_answer(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    def fake_generate_text(self, prompt: str) -> str:  # noqa: ANN001
+    def fake_generate_text(self, prompt: str) -> str:
         return "Mycotoxins can be risky because fungal metabolites may harm animals (1)."
 
     monkeypatch.setattr(TransformersGenerator, "_generate_text", fake_generate_text)
@@ -173,7 +173,8 @@ def test_transformers_generator_normalizes_parenthetical_citations(
     result = TransformersGenerator().generate(request)
     assert result.status == "accepted"
     assert "(1)" not in result.text
-    assert "[1]" in result.text
+    assert "[1]" not in result.text
+    assert result.text.endswith("animals.")
 
 
 def test_build_generator_supports_transformers(monkeypatch) -> None:

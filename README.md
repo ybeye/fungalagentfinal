@@ -24,7 +24,7 @@ git clone https://github.com/ybeye/fungalagentfinal.git
 cd fungalagentfinal
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[dev,eval]"
+python -m pip install -e ".[dev,eval,local-llm]"
 python -m pip install peft
 ```
 
@@ -54,8 +54,8 @@ FUNGI_HF_MODEL=HuggingFaceTB/SmolLM2-1.7B-Instruct
 FUNGI_HF_ADAPTER_PATH=models/smollm2-fungi-checkpoint-800
 ```
 
-Add the Fine-Tuned Adapter
-The fine-tuned LoRA adapter is not included in the GitHub repository, but will be included in the final submission. 
+## Add the Fine-Tuned Adapter
+The fine-tuned LoRA adapter is not included in the GitHub repository, but we will include it in the final submission. 
 Create a folder with the name models in the main directory, and place smollm2-fungi-checkpoint-800 within it. 
 Place the adapter folder at:
 ```text
@@ -77,21 +77,6 @@ Then open `http://127.0.0.1:7860`.
 The first run may download the configured local embedding model. No API key is
 required for the default file based generation path and local embedding path.
 Open the Gradio interface in your browser and test the system using questions like: What role do fungi play in decomposition?
-
-## File Based Generation
-
-Each generation step writes:
-
-- `outputs/<run_id>/codex_tasks/<step>.prompt.md`
-- `outputs/<run_id>/codex_tasks/<step>.evidence.json`
-- `outputs/<run_id>/codex_tasks/<step>.schema.json`
-
-The response step writes:
-
-- `outputs/<run_id>/codex_tasks/<step>.response.md`
-- optional `outputs/<run_id>/codex_tasks/<step>.response.json`
-
-The app validates citations and safety rules before accepting the response.
 
 ## Safety Boundary
 

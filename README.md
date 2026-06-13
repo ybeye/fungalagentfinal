@@ -20,8 +20,8 @@ Use Python 3.12 or newer. The commands below work on macOS/Linux shells and
 PowerShell unless otherwise noted:
 
 ```bash
-git clone https://github.com/JacktheLander/FunghiResearchAgent.git
-cd FunghiResearchAgent
+git clone https://github.com/ybeye/fungalagentfinal.git
+cd fungalagentfinal
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev,eval]"
@@ -77,7 +77,6 @@ Then open `http://127.0.0.1:7860`.
 The first run may download the configured local embedding model. No API key is
 required for the default file based generation path and local embedding path.
 Open the Gradio interface in your browser and test the system using questions like: What role do fungi play in decomposition?
-    What are mycorrhizal fungi?
 
 ## File Based Generation
 

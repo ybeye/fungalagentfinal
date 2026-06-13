@@ -72,8 +72,7 @@ python -m fungi_rag.app --host 127.0.0.1 --port 7860
 
 Then open `http://127.0.0.1:7860`.
 
-The first run may download the configured local embedding model. No API key is
-required for the default file based generation path and local embedding path.
+The first run may download the configured local embedding model. No API key is required for the local embedding path or the transformer generator setup.
 Open the Gradio interface in your browser and test the system using questions like: What role do fungi play in decomposition?
 
 ## Safety Boundary
